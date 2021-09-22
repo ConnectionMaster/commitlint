@@ -57,6 +57,11 @@ Rule configurations are either of type `array` residing on a key with the rule's
 - **condition**: `body` begins with blank line
 - **rule**: `always`
 
+#### body-empty
+
+- **condition**: `body` is empty
+- **rule**: `never`
+
 #### body-max-length
 
 - **condition**: `body` has `value` or less characters
@@ -87,10 +92,40 @@ Infinity
 0
 ```
 
+#### body-case
+
+- **condition**: `header` is in case `value`
+- **rule**: `always`
+- **value**
+
+```
+'lower-case'
+```
+
+- **possible values**
+
+```
+[
+  'lower-case', // default
+  'upper-case', // UPPERCASE
+  'camel-case', // camelCase
+  'kebab-case', // kebab-case
+  'pascal-case', // PascalCase
+  'sentence-case', // Sentence case
+  'snake-case', // snake_case
+  'start-case' // Start Case
+]
+```
+
 #### footer-leading-blank
 
 - **condition**: `footer` begins with blank line
 - **rule**: `always`
+
+#### footer-empty
+
+- **condition**: `footer` is empty
+- **rule**: `never`
 
 #### footer-max-length
 
@@ -129,7 +164,7 @@ Infinity
 - **value**
 
 ```
-'lowerCase'
+'lower-case'
 ```
 
 - **possible values**
@@ -198,7 +233,7 @@ Infinity
 - **value**
 
 ```
-'lowerCase'
+'lower-case'
 ```
 
 - **possible values**
@@ -248,7 +283,7 @@ Infinity
 - **value**
 
 ```
-'lowerCase'
+'lower-case'
 ```
 
 - **possible values**
@@ -300,6 +335,11 @@ Infinity
 ```
 0
 ```
+
+#### subject-exclamation-mark
+
+- **condition**: `subject` has exclamation before the `:` marker
+- **rule**: `never`
 
 #### type-enum
 
@@ -368,77 +408,12 @@ Infinity
 'Signed-off-by:'
 ```
 
-### Deprecated rules
+#### trailer-exists
 
-#### body-tense `deprecated`
-
-- **condition**: `body` is verbalized in tense present in `value`
+- **condition**: `message` has trailer `value`
 - **rule**: `always`
 - **value**
 
 ```
-['present-imperative']
-```
-
-- **possible values**
-
-```
-[
-  'past-tense', // did
-  'present-imperative', // do
-  'present-participle', // doing
-  'present-third-person' // does
-]
-```
-
-#### footer-tense `deprecated`
-
-- **condition**: `footer` is verbalized in tense present in `value`
-- **rule**: `always`
-- **value**
-
-```
-['present-imperative']
-```
-
-- **possible values**
-
-```
-[
-  'past-tense', // did
-  'present-imperative', // do
-  'present-participle', // doing
-  'present-third-person' // does
-]
-```
-
-#### lang `deprecated`
-
-- **condition**: `subject` is of language `value`
-- **rule**: `always`
-- **value**
-
-```
-eng
-```
-
-#### subject-tense `deprecated`
-
-- **condition**: `subject` is verbalized in tense present in `value`
-- **rule**: `always`
-- **value**
-
-```
-['present-imperative']
-```
-
-- **possible values**
-
-```
-[
-  'past-tense', // did
-  'present-imperative', // do
-  'present-participle', // doing
-  'present-third-person' // does
-]
+'Signed-off-by:'
 ```

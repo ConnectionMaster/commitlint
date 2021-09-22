@@ -7,7 +7,6 @@ jest.mock('@scope/commitlint-plugin-example', () => scopedPlugin, {
 });
 
 import path from 'path';
-import execa from 'execa';
 import resolveFrom from 'resolve-from';
 import {fix, git, npm} from '@commitlint/test';
 
@@ -249,6 +248,22 @@ test('recursive extends with package.json file', async () => {
 	});
 });
 
+test('recursive extends with ts file', async () => {
+	const cwd = await gitBootstrap('fixtures/recursive-extends-ts');
+	const actual = await load({}, {cwd});
+
+	expect(actual).toMatchObject({
+		formatter: '@commitlint/format',
+		extends: ['./first-extended'],
+		plugins: {},
+		rules: {
+			zero: [0, 'never', 'zero'],
+			one: [1, 'never', 'one'],
+			two: [2, 'never', 'two'],
+		},
+	});
+});
+
 test('parser preset overwrites completely instead of merging', async () => {
 	const cwd = await gitBootstrap('fixtures/parser-preset-override');
 	const actual = await load({}, {cwd});
@@ -411,10 +426,9 @@ test('recursive resolves parser preset from conventional atom', async () => {
 	const cwd = await gitBootstrap(
 		'fixtures/recursive-parser-preset-conventional-atom'
 	);
-	// the package file is nested in 2 folders, `npm.bootstrap` cant do that
-	await execa('npm', ['install'], {
-		cwd: path.resolve(cwd, 'first-extended', 'second-extended'),
-	});
+	await npm.installModules(
+		path.resolve(cwd, 'first-extended', 'second-extended')
+	);
 
 	const actual = await load({}, {cwd});
 
@@ -423,7 +437,7 @@ test('recursive resolves parser preset from conventional atom', async () => {
 	expect((actual.parserPreset.parserOpts as any).headerPattern).toEqual(
 		/^(:.*?:) (.*)$/
 	);
-}, 10000);
+});
 
 test('resolves parser preset from conventional commits without factory support', async () => {
 	const cwd = await npmBootstrap(

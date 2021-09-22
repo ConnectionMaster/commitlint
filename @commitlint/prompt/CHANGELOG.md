@@ -3,6 +3,74 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+# [13.1.0](https://github.com/conventional-changelog/commitlint/compare/v13.0.0...v13.1.0) (2021-07-24)
+
+**Note:** Version bump only for package @commitlint/prompt
+
+
+
+
+
+# [13.0.0](https://github.com/conventional-changelog/commitlint/compare/v12.1.4...v13.0.0) (2021-05-24)
+
+
+* chore!: remove node 10 support (#2596) ([4db4ba1](https://github.com/conventional-changelog/commitlint/commit/4db4ba1b0b312410a0f62100a93a80c246a6c410)), closes [#2596](https://github.com/conventional-changelog/commitlint/issues/2596)
+
+
+### BREAKING CHANGES
+
+* minimum node version is 12
+
+
+
+
+
+## [12.1.3](https://github.com/conventional-changelog/commitlint/compare/v12.1.2...v12.1.3) (2021-05-12)
+
+**Note:** Version bump only for package @commitlint/prompt
+
+
+
+
+
+## [12.1.2](https://github.com/conventional-changelog/commitlint/compare/v12.1.1...v12.1.2) (2021-04-29)
+
+**Note:** Version bump only for package @commitlint/prompt
+
+
+
+
+
+## [12.1.1](https://github.com/conventional-changelog/commitlint/compare/v12.1.0...v12.1.1) (2021-04-02)
+
+
+### Bug Fixes
+
+* **prompt:** modify the entry point to pass commitizen's function check ([#2501](https://github.com/conventional-changelog/commitlint/issues/2501)) ([0173fb7](https://github.com/conventional-changelog/commitlint/commit/0173fb7cc01dc8442ed88a0ab8feec20c955deee)), closes [/github.com/conventional-changelog/commitlint/issues/2486#issuecomment-791682272](https://github.com//github.com/conventional-changelog/commitlint/issues/2486/issues/issuecomment-791682272) [/github.com/conventional-changelog/commitlint/issues/2486#issuecomment-791682272](https://github.com//github.com/conventional-changelog/commitlint/issues/2486/issues/issuecomment-791682272)
+
+
+
+
+
+# [12.1.0](https://github.com/conventional-changelog/commitlint/compare/v12.0.1...v12.1.0) (2021-03-06)
+
+**Note:** Version bump only for package @commitlint/prompt
+
+
+
+
+
+## [12.0.1](https://github.com/conventional-changelog/commitlint/compare/v12.0.0...v12.0.1) (2021-02-23)
+
+
+### Bug Fixes
+
+* update dependency throat to v6 ([#2417](https://github.com/conventional-changelog/commitlint/issues/2417)) ([6f7db1b](https://github.com/conventional-changelog/commitlint/commit/6f7db1b39c48561b84a4fce9623fb045c5467fe8))
+
+
+
+
+
 # [12.0.0](https://github.com/conventional-changelog/commitlint/compare/v11.0.0...v12.0.0) (2021-01-18)
 
 **Note:** Version bump only for package @commitlint/prompt

@@ -2,7 +2,7 @@
 
 Enforce commit conventions with confidence by linting on your CI servers with `commitlint`.
 
-This guide assumes you have a already configured `commitlint` for local usage.
+This guide assumes you have already configured `commitlint` for local usage.
 
 Follow the [Getting Started](./?id=getting-started) for basic installation and configuration instructions.
 
@@ -73,6 +73,19 @@ workflows:
     jobs:
     - setup
     - lint_commit_message: { requires: [setup] }
+```
+
+### 3rd party integrations
+
+#### [Codemagic](https://codemagic.io/)
+
+```yaml
+#codemagic.yaml
+workflows:
+  commitlint:
+    name: Lint commit message
+    scripts:
+      - npx commitlint --from=HEAD~1
 ```
 
 ?> Help yourself adopting a commit convention by using an interactive commit prompt. Learn how to use `@commitlint/prompt-cli` in the [Use prompt guide](guides-use-prompt.md)
