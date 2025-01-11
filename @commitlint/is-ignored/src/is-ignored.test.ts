@@ -1,4 +1,6 @@
-import isIgnored from './is-ignored';
+import {test, expect} from 'vitest';
+
+import isIgnored from './is-ignored.js';
 
 const VERSION_MESSAGES = [
 	'0.0.1',
@@ -120,6 +122,10 @@ test('should ignore npm semver commits with footers', () => {
 	AMENDED_VERSION_MESSAGES.forEach((message) =>
 		expect(isIgnored(message)).toBe(true)
 	);
+});
+
+test('should return true amend commits', () => {
+	expect(isIgnored('amend! initial commit')).toBe(true);
 });
 
 test('should return true fixup commits', () => {

@@ -1,5 +1,12 @@
+import {test, expect} from 'vitest';
+import path from 'path';
+import {fileURLToPath} from 'url';
+
 import {npm} from '@commitlint/test';
-import config from '.';
+
+import config from './index.js';
+
+const __dirname = path.resolve(fileURLToPath(import.meta.url), '..');
 
 test('exports rules key', () => {
 	expect(config).toHaveProperty('rules');
@@ -73,4 +80,12 @@ test('expect correct result from Nx 15', async () => {
 
 	const [, , value] = await fn({cwd});
 	expect(value).toEqual(['e', 'f']);
+});
+
+test('expect correct result from Nx 17', async () => {
+	const {'scope-enum': fn} = config.rules;
+	const cwd = await npm.bootstrap('fixtures/nx17', __dirname);
+
+	const [, , value] = await fn({cwd});
+	expect(value).toEqual(['g', 'h']);
 });

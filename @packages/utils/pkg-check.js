@@ -1,14 +1,14 @@
 #!/usr/bin/env node
-const path = require('path');
-const fs = require('fs-extra');
-const zlib = require('zlib');
+import path from 'path';
+import fs from 'fs';
 
-const execa = require('execa');
-const yargs = require('yargs');
-const readPkg = require('read-pkg');
-const requireFromString = require('require-from-string');
-const tar = require('tar-fs');
-const tmp = require('tmp');
+import readPkg from 'read-pkg';
+import requireFromString from 'require-from-string';
+import tar from 'tar-fs';
+import {x} from 'tinyexec';
+import tmp from 'tmp';
+import yargs from 'yargs';
+import zlib from 'zlib';
 
 tmp.setGracefulCleanup();
 
@@ -146,7 +146,9 @@ async function getTarballFiles(source, options) {
 	});
 	const cwd = tmpDir.name;
 	const tarball = path.join(cwd, 'test-archive.tgz');
-	await execa('yarn', ['pack', '--filename', tarball], {cwd: source});
+	await x('yarn', ['pack', '--filename', tarball], {
+		nodeOptions: {cwd: source},
+	});
 
 	return getArchiveFiles(tarball, options);
 }

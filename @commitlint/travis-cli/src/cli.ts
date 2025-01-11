@@ -1,4 +1,10 @@
-import execa from 'execa';
+import {SpawnOptions} from 'node:child_process';
+
+import {createRequire} from 'module';
+
+import {x} from 'tinyexec';
+
+const require = createRequire(import.meta.url);
 
 // Allow to override used bins for testing purposes
 const GIT = process.env.TRAVIS_COMMITLINT_GIT_BIN || 'git';
@@ -20,7 +26,7 @@ const RANGE = process.env.TRAVIS_COMMIT_RANGE;
 const IS_PR = process.env.TRAVIS_EVENT_TYPE === 'pull_request';
 
 main().catch((err) => {
-	console.log(err);
+	console.error(err);
 	process.exit(1);
 });
 
@@ -49,14 +55,16 @@ async function main() {
 		await lint(['--from', start, '--to', end, ...args]);
 	} else {
 		const input = await log(COMMIT);
-		await lint(args, {input});
+		await lint(args, {}, input);
 	}
 }
 
-async function git(args: string[], options: execa.Options = {}) {
-	return execa(GIT, args, {
-		stdio: 'inherit',
-		...options,
+async function git(args: string[], nodeOptions: SpawnOptions = {}) {
+	return x(GIT, args, {
+		nodeOptions: {
+			stdio: 'inherit',
+			...nodeOptions,
+		},
 	});
 }
 
@@ -72,11 +80,22 @@ async function isClean() {
 	return !(result.stdout && result.stdout.trim());
 }
 
-async function lint(args: string[], options: execa.Options = {}) {
-	return execa(COMMITLINT, args, {
-		stdio: ['pipe', 'inherit', 'inherit'],
-		...options,
+async function lint(
+	args: string[],
+	nodeOptions: SpawnOptions = {},
+	input: string = ''
+) {
+	const result = x(COMMITLINT, args, {
+		nodeOptions: {
+			stdio: ['pipe', 'inherit', 'inherit'],
+			...nodeOptions,
+		},
 	});
+
+	result.process?.stdin?.write(input);
+	result.process?.stdin?.end();
+
+	return result;
 }
 
 async function log(hash: string) {

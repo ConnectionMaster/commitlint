@@ -1,7 +1,9 @@
+import {test, expect} from 'vitest';
 import parse from '@commitlint/parse';
-import {referencesEmpty} from './references-empty';
+import {referencesEmpty} from './references-empty.js';
 
-const preset = require('conventional-changelog-angular');
+// @ts-expect-error -- no typings
+import preset from 'conventional-changelog-angular';
 
 const messages = {
 	plain: 'foo: bar',
@@ -12,7 +14,7 @@ const messages = {
 };
 
 const opts = (async () => {
-	const o = await preset;
+	const o = await preset();
 	o.parserOpts.commentChar = '#';
 	return o;
 })();

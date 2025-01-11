@@ -1,4 +1,6 @@
-import {format, formatResult} from '.';
+import {test, expect} from 'vitest';
+
+import {format, formatResult} from './index.js';
 
 test('does nothing without arguments', () => {
 	const actual = format();
@@ -31,6 +33,29 @@ test('returns empty summary if verbose', () => {
 	);
 
 	expect(actual).toContain('0 problems, 0 warnings');
+});
+
+test('returns empty summary with full commit message if verbose', () => {
+	const actual = format(
+		{
+			results: [
+				{
+					errors: [],
+					warnings: [],
+					input:
+						'feat(cli): this is a valid header\n\nThis is a valid body\n\nSigned-off-by: tester',
+				},
+			],
+		},
+		{
+			verbose: true,
+			color: false,
+		}
+	);
+
+	expect(actual).toStrictEqual(
+		'⧗   input: feat(cli): this is a valid header\n\nThis is a valid body\n\nSigned-off-by: tester\n✔   found 0 problems, 0 warnings'
+	);
 });
 
 test('returns a correct summary of empty .errors and .warnings', () => {
