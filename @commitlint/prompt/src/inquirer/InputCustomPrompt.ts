@@ -1,13 +1,12 @@
 /// <reference path="./inquirer.d.ts" />
 import chalk from 'chalk';
-import inquirer from 'inquirer';
-import InputPrompt from 'inquirer/lib/prompts/input';
-import observe from 'inquirer/lib/utils/events';
-import type {Interface as ReadlineInterface, Key} from 'readline';
-import type {Subscription} from 'rxjs/internal/Subscription';
 
-import Answers = inquirer.Answers;
-import InputCustomOptions = inquirer.InputCustomOptions;
+import inquirer, {type Answers, type InputCustomOptions} from 'inquirer';
+import InputPrompt from 'inquirer/lib/prompts/input.js';
+import observe from 'inquirer/lib/utils/events.js';
+import type {Interface as ReadlineInterface, Key} from 'readline';
+import type {Subscription} from 'rxjs';
+
 import SuccessfulPromptStateData = inquirer.prompts.SuccessfulPromptStateData;
 
 interface KeyDescriptor {
@@ -47,6 +46,8 @@ export default class InputCustomPrompt<
 
 	onEnd(state: SuccessfulPromptStateData): void {
 		this.lineSubscription.unsubscribe();
+		// Add or remove leading blank if rule is active.
+		state.value = this.opt.forceLeadingBlankFn(state.value);
 		super.onEnd(state);
 	}
 
@@ -77,7 +78,7 @@ export default class InputCustomPrompt<
 
 	measureInput(input: string): number {
 		if (this.opt.filter) {
-			return this.opt.filter(input).length;
+			return this.opt.filter(input, this.answers).length;
 		}
 		return input.length;
 	}

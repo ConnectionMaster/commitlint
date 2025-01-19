@@ -3,82 +3,85 @@ name: CI
 on:
   push:
     branches:
-      - master
+      - '**'
   pull_request:
     types: [opened, synchronize]
 
+  workflow_dispatch:
+
+  # to execute once a day (more info see https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule )
+  schedule:
+    - cron: '0 0 * * *'
+
 jobs:
-  v18:
-    runs-on: ubuntu-22.04
-    container:
-      image: 'ubuntu:22.04'
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+        node: [18, 20]
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Install required dependencies
-        run: |
-          apt update
-          apt install --yes sudo
-          sudo apt install --yes git
-          sudo apt install --yes curl
-          curl --location https://deb.nodesource.com/setup_18.x | sudo --preserve-env bash -
-          sudo DEBIAN_FRONTEND=noninteractive apt install --yes nodejs
       - uses: actions/checkout@v4
-      # workaround for https://github.com/actions/runner/issues/2033
-      - name: ownership workaround
-        run: git config --global --add safe.directory '*'
-      - name: Install yarn
-        run: |
-          npm install --global yarn
-          node --version
-          yarn global add yarn@latest
-      - name: Install dependencies
-        run: yarn install --ignore-engines --frozen-lockfile
-      - name: Build packages
-        run: yarn build
-      - name: Test
-        run: yarn test-ci
 
-  v20:
-    runs-on: ubuntu-22.04
-    container:
-      image: 'ubuntu:22.04'
-    steps:
-      - name: Install required dependencies
-        run: |
-          apt update
-          apt install --yes sudo
-          sudo apt install --yes git
-          sudo apt install --yes curl
-          curl --location https://deb.nodesource.com/setup_20.x | sudo --preserve-env bash -
-          sudo DEBIAN_FRONTEND=noninteractive apt install --yes nodejs
-      - uses: actions/checkout@v4
-      # workaround for https://github.com/actions/runner/issues/2033
-      - name: ownership workaround
-        run: git config --global --add safe.directory '*'
-      - name: Install yarn
-        run: |
-          npm install --global yarn
-          node --version
-          yarn global add yarn@latest
-      - name: Install dependencies
-        run: yarn install --ignore-engines --frozen-lockfile
-      - name: Build packages
-        run: yarn build
-      - name: Test
-        run: yarn test-ci
-
-  windows:
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          max_attempts: 3
-      - name: Update yarn
-        run: |
-          node --version
-          yarn global add yarn@latest
+          node-version: ${{ matrix.node }}
+          cache: yarn
+
       - name: Install dependencies
         run: yarn install --ignore-engines --frozen-lockfile
+
       - name: Build packages
         run: yarn build
+
       - name: Test
-        run: yarn test-ci
+        run: yarn test
+
+  codeQuality:
+    name: Code quality
+    needs: [build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: yarn
+
+      - name: Install dependencies
+        run: yarn install --ignore-engines --frozen-lockfile
+
+      - name: Check format
+        run: yarn format || (yarn format-fix; git diff --exit-code)
+
+      - name: Lint
+        run: yarn lint
+
+  nodeJsBaselineAptCompatibility:
+    name: NodeJS installed from stock Ubuntu-LTS packages (not external sources)
+    runs-on: ubuntu-24.04
+    container:
+      image: 'ubuntu:24.04'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          apt update --yes
+
+          # NOTE: do not change the below with an `actions/setup-node` step! or it
+          # would make this CI job entirely pointless
+          apt install --yes npm
+
+          npm install --global yarn
+          yarn install
+
+      - name: Print versions
+        run: node --version && npm --version && yarn --version
+
+      - name: Build
+        run: yarn build
+
+      - name: Run Tests
+        run: yarn test

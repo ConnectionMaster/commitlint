@@ -1,9 +1,15 @@
 {
   "name": "@commitlint/cz-commitlint",
-  "version": "18.1.0",
+  "type": "module",
+  "version": "19.6.1",
   "description": "Commitizen adapter using the commitlint.config.js",
   "main": "./lib/index.js",
+  "exports": {
+    "import": "./lib/index.js",
+    "require": "./index.cjs"
+  },
   "files": [
+    "index.cjs",
     "lib"
   ],
   "keywords": [
@@ -37,19 +43,19 @@
     }
   },
   "dependencies": {
-    "@commitlint/ensure": "^18.1.0",
-    "@commitlint/load": "^18.1.0",
-    "@commitlint/types": "^18.1.0",
-    "chalk": "^4.1.0",
+    "@commitlint/ensure": "^19.5.0",
+    "@commitlint/load": "^19.6.1",
+    "@commitlint/types": "^19.5.0",
+    "chalk": "^5.3.0",
     "lodash.isplainobject": "^4.0.6",
     "word-wrap": "^1.2.5"
   },
   "peerDependencies": {
     "commitizen": "^4.0.3",
-    "inquirer": "^8.0.0"
+    "inquirer": "^9.0.0"
   },
   "devDependencies": {
-    "@types/inquirer": "^8.0.0",
+    "@types/inquirer": "^9.0.7",
     "@types/lodash.isfunction": "^3.0.8",
     "@types/lodash.isplainobject": "^4.0.8",
     "commitizen": "^4.2.4",

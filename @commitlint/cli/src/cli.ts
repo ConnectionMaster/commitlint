@@ -1,30 +1,43 @@
-import execa, {ExecaError} from 'execa';
-import load from '@commitlint/load';
-import lint from '@commitlint/lint';
-import read from '@commitlint/read';
-import isFunction from 'lodash.isfunction';
-import resolveFrom from 'resolve-from';
-import resolveGlobal from 'resolve-global';
-import yargs, {Arguments} from 'yargs';
+import {createRequire} from 'module';
+import path from 'path';
+import {fileURLToPath, pathToFileURL} from 'url';
 import util from 'util';
 
-import {CliFlags} from './types';
-import {
+import lint from '@commitlint/lint';
+import load, {resolveFromSilent, resolveGlobalSilent} from '@commitlint/load';
+import read from '@commitlint/read';
+import type {
+	Formatter,
 	LintOptions,
 	LintOutcome,
-	ParserOptions,
 	ParserPreset,
 	QualifiedConfig,
-	Formatter,
 	UserConfig,
 } from '@commitlint/types';
-import {CliError} from './cli-error';
+import type {Options} from 'conventional-commits-parser';
+import {x} from 'tinyexec';
+import yargs, {type Arguments} from 'yargs';
 
-const pkg = require('../package');
+import {CliFlags} from './types.js';
+
+import {CliError, ExitCode} from './cli-error.js';
+
+const require = createRequire(import.meta.url);
+
+const __dirname = path.resolve(fileURLToPath(import.meta.url), '..');
+
+const dynamicImport = async <T>(id: string): Promise<T> => {
+	const imported = await import(
+		path.isAbsolute(id) ? pathToFileURL(id).toString() : id
+	);
+	return ('default' in imported && imported.default) || imported;
+};
+
+const pkg: typeof import('../package.json') = require('../package.json');
 
 const gitDefaultCommentChar = '#';
 
-const cli = yargs
+const cli = yargs(process.argv.slice(2))
 	.options({
 		color: {
 			alias: 'c',
@@ -34,13 +47,14 @@ const cli = yargs
 		},
 		config: {
 			alias: 'g',
-			description: 'path to the config file',
+			description:
+				'path to the config file; result code 9 if config is missing',
 			type: 'string',
 		},
 		'print-config': {
-			type: 'boolean',
-			default: false,
+			choices: ['', 'text', 'json'],
 			description: 'print resolved config',
+			type: 'string',
 		},
 		cwd: {
 			alias: 'd',
@@ -77,10 +91,20 @@ const cli = yargs
 				'lower end of the commit range to lint; applies if edit=false',
 			type: 'string',
 		},
+		'from-last-tag': {
+			description:
+				'uses the last tag as the lower end of the commit range to lint; applies if edit=false and from is not set',
+			type: 'boolean',
+		},
 		'git-log-args': {
 			description:
-				"addditional git log arguments as space separated string, example '--first-parent --cherry-pick'",
+				"additional git log arguments as space separated string, example '--first-parent --cherry-pick'",
 			type: 'string',
+		},
+		last: {
+			alias: 'l',
+			description: 'just analyze the last commit; applies if edit=false',
+			type: 'boolean',
 		},
 		format: {
 			alias: 'o',
@@ -125,11 +149,22 @@ const cli = yargs
 	.alias('v', 'version')
 	.help('help')
 	.alias('h', 'help')
+	.config(
+		'options',
+		'path to a JSON file or Common.js module containing CLI options',
+		require
+	)
 	.usage(`${pkg.name}@${pkg.version} - ${pkg.description}\n`)
 	.usage(
 		`[input] reads from stdin if --edit, --env, --from and --to are omitted`
 	)
 	.strict();
+
+/**
+ * avoid description words to be divided in new lines when there is enough space
+ * @see https://github.com/conventional-changelog/commitlint/pull/3850#discussion_r1472251234
+ */
+cli.wrap(cli.terminalWidth());
 
 main(cli.argv).catch((err) => {
 	setTimeout(() => {
@@ -175,22 +210,46 @@ async function main(args: MainArgs): Promise<void> {
 	const raw = options._;
 	const flags = normalizeFlags(options);
 
-	if (flags['print-config']) {
+	if (typeof options['print-config'] === 'string') {
 		const loaded = await load(getSeed(flags), {
 			cwd: flags.cwd,
 			file: flags.config,
 		});
-		console.log(util.inspect(loaded, false, null, options.color));
-		return;
+
+		switch (options['print-config']) {
+			case 'json':
+				console.log(JSON.stringify(loaded));
+				return;
+
+			case 'text':
+			default:
+				console.log(util.inspect(loaded, false, null, options.color));
+				return;
+		}
 	}
 
 	const fromStdin = checkFromStdin(raw, flags);
+
+	if (
+		Object.hasOwn(flags, 'last') &&
+		(Object.hasOwn(flags, 'from') || Object.hasOwn(flags, 'to') || flags.edit)
+	) {
+		const err = new CliError(
+			'Please use the --last flag alone. The --last flag should not be used with --to or --from or --edit.',
+			pkg.name
+		);
+		cli.showHelp('log');
+		console.log(err.message);
+		throw err;
+	}
 
 	const input = await (fromStdin
 		? stdin()
 		: read({
 				to: flags.to,
 				from: flags.from,
+				fromLastTag: flags['from-last-tag'],
+				last: flags.last,
 				edit: flags.edit,
 				cwd: flags.cwd,
 				gitLogArgs: flags['git-log-args'],
@@ -203,10 +262,10 @@ async function main(args: MainArgs): Promise<void> {
 
 	if (messages.length === 0 && !checkFromRepository(flags)) {
 		const err = new CliError(
-			'[input] is required: supply via stdin, or --env or --edit or --from and --to',
+			'[input] is required: supply via stdin, or --env or --edit or --last or --from and --to',
 			pkg.name
 		);
-		yargs.showHelp('log');
+		cli.showHelp('log');
 		console.log(err.message);
 		throw err;
 	}
@@ -216,7 +275,7 @@ async function main(args: MainArgs): Promise<void> {
 		file: flags.config,
 	});
 	const parserOpts = selectParserOpts(loaded.parserPreset);
-	const opts: LintOptions & {parserOpts: ParserOptions} = {
+	const opts: LintOptions & {parserOpts: Options} = {
 		parserOpts: {},
 		plugins: {},
 		ignores: [],
@@ -234,25 +293,23 @@ async function main(args: MainArgs): Promise<void> {
 	if (loaded.defaultIgnores === false) {
 		opts.defaultIgnores = false;
 	}
-	const format = loadFormatter(loaded, flags);
+	const format = await loadFormatter(loaded, flags);
 
 	// If reading from `.git/COMMIT_EDIT_MSG`, strip comments using
 	// core.commentChar from git configuration, falling back to '#'.
 	if (flags.edit) {
-		try {
-			const {stdout} = await execa('git', ['config', 'core.commentChar']);
-			opts.parserOpts.commentChar = stdout.trim() || gitDefaultCommentChar;
-		} catch (e) {
-			const execaError = e as ExecaError;
-			// git config returns exit code 1 when the setting is unset,
-			// don't warn in this case.
-			if (!execaError.failed || execaError.exitCode !== 1) {
-				console.warn(
-					'Could not determine core.commentChar git configuration',
-					e
-				);
-			}
+		const result = x('git', ['config', 'core.commentChar']);
+		const output = await result;
+
+		if (result.exitCode && result.exitCode > 1) {
+			console.warn(
+				'Could not determine core.commentChar git configuration',
+				output.stderr
+			);
 			opts.parserOpts.commentChar = gitDefaultCommentChar;
+		} else {
+			opts.parserOpts.commentChar =
+				output.stdout.trim() || gitDefaultCommentChar;
 		}
 	}
 
@@ -260,6 +317,7 @@ async function main(args: MainArgs): Promise<void> {
 		messages.map((message) => lint(message, loaded.rules, opts))
 	);
 
+	let isRulesEmpty = false;
 	if (Object.keys(loaded.rules).length === 0) {
 		let input = '';
 
@@ -276,14 +334,16 @@ async function main(args: MainArgs): Promise<void> {
 					name: 'empty-rules',
 					message: [
 						'Please add rules to your `commitlint.config.js`',
-						'    - Getting started guide: https://commitlint.js.org/#/?id=getting-started',
-						'    - Example config: https://github.com/conventional-changelog/commitlint/blob/master/%40commitlint/config-conventional/index.js',
+						'    - Getting started guide: https://commitlint.js.org/guides/getting-started',
+						'    - Example config: https://github.com/conventional-changelog/commitlint/blob/master/%40commitlint/config-conventional/src/index.ts',
 					].join('\n'),
 				},
 			],
 			warnings: [],
 			input,
 		});
+
+		isRulesEmpty = true;
 	}
 
 	const report = results.reduce<{
@@ -322,11 +382,14 @@ async function main(args: MainArgs): Promise<void> {
 
 	if (flags.strict) {
 		if (report.errorCount > 0) {
-			throw new CliError(output, pkg.name, 3);
+			throw new CliError(output, pkg.name, ExitCode.CommitLintError);
 		}
 		if (report.warningCount > 0) {
-			throw new CliError(output, pkg.name, 2);
+			throw new CliError(output, pkg.name, ExitCode.CommitLintWarning);
 		}
+	}
+	if (isRulesEmpty) {
+		throw new CliError(output, pkg.name, ExitCode.CommitlintInvalidArgument);
 	}
 	if (!report.valid) {
 		throw new CliError(output, pkg.name);
@@ -346,7 +409,12 @@ function checkFromEdit(flags: CliFlags): boolean {
 }
 
 function checkFromHistory(flags: CliFlags): boolean {
-	return typeof flags.from === 'string' || typeof flags.to === 'string';
+	return (
+		typeof flags.from === 'string' ||
+		typeof flags['from-last-tag'] === 'boolean' ||
+		typeof flags.to === 'string' ||
+		typeof flags.last === 'boolean'
+	);
 }
 
 function normalizeFlags(flags: CliFlags): CliFlags {
@@ -422,21 +490,18 @@ function selectParserOpts(parserPreset: ParserPreset | undefined) {
 	return parserPreset.parserOpts;
 }
 
-function loadFormatter(config: QualifiedConfig, flags: CliFlags): Formatter {
+function loadFormatter(
+	config: QualifiedConfig,
+	flags: CliFlags
+): Promise<Formatter> {
 	const moduleName = flags.format || config.formatter || '@commitlint/format';
 	const modulePath =
-		resolveFrom.silent(__dirname, moduleName) ||
-		resolveFrom.silent(flags.cwd, moduleName) ||
-		resolveGlobal.silent(moduleName);
+		resolveFromSilent(moduleName, __dirname) ||
+		resolveFromSilent(moduleName, flags.cwd) ||
+		resolveGlobalSilent(moduleName);
 
 	if (modulePath) {
-		const moduleInstance = require(modulePath);
-
-		if (isFunction(moduleInstance.default)) {
-			return moduleInstance.default;
-		}
-
-		return moduleInstance;
+		return dynamicImport<Formatter>(modulePath);
 	}
 
 	throw new Error(`Using format ${moduleName}, but cannot find the module.`);

@@ -10,6 +10,7 @@ on:
       - 'Dockerfile.ci'
 jobs:
   container-build:
+    if: github.repository == 'conventional-changelog/commitlint'
     runs-on: ubuntu-latest
     steps:
       - name: checkout
@@ -34,12 +35,11 @@ jobs:
             type=ref,event=branch
             type=sha,prefix=,format=short
       - name: Build and push container image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.ci
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # disable arm build for now, because of https://github.com/nodejs/docker-node/issues/1335
-          platforms: linux/amd64 #,linux/arm64
+          platforms: linux/amd64,linux/arm64
