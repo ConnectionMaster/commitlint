@@ -1,16 +1,25 @@
-const plugin = jest.fn();
-const scopedPlugin = jest.fn();
-
-jest.mock('commitlint-plugin-example', () => plugin, {virtual: true});
-jest.mock('@scope/commitlint-plugin-example', () => scopedPlugin, {
-	virtual: true,
-});
-
+import {describe, test, expect, vi} from 'vitest';
+import {readFileSync, writeFileSync} from 'fs';
 import path from 'path';
-import resolveFrom from 'resolve-from';
+import {fileURLToPath} from 'url';
+
+import {RuleConfigSeverity} from '@commitlint/types';
 import {fix, git, npm} from '@commitlint/test';
 
-import load from './load';
+import load, {resolveFrom} from './load.js';
+import {isDynamicAwaitSupported} from './utils/load-config.js';
+
+const __dirname = path.resolve(fileURLToPath(import.meta.url), '..');
+
+const plugin = vi.fn();
+const scopedPlugin = vi.fn();
+
+vi.mock('commitlint-plugin-example', () => ({
+	default: plugin,
+}));
+vi.mock('@scope/commitlint-plugin-example', () => ({
+	default: scopedPlugin,
+}));
 
 const fixBootstrap = (name: string) => fix.bootstrap(name, __dirname);
 const gitBootstrap = (name: string) => git.bootstrap(name, __dirname);
@@ -26,47 +35,82 @@ test('extends-empty should have no rules', async () => {
 
 test('uses seed as configured', async () => {
 	const cwd = await gitBootstrap('fixtures/extends-empty');
-	const rules = {'body-case': [1, 'never', 'camel-case'] as any};
+	const rules = {
+		'body-case': [RuleConfigSeverity.Warning, 'never', 'camel-case'] as any,
+	};
 
 	const actual = await load({rules}, {cwd});
 
-	expect(actual.rules['body-case']).toStrictEqual([1, 'never', 'camel-case']);
+	expect(actual.rules['body-case']).toStrictEqual([
+		RuleConfigSeverity.Warning,
+		'never',
+		'camel-case',
+	]);
 });
 
 test('rules should be loaded from local', async () => {
 	const actual = await load({
 		rules: {
-			direct: [1, 'never', 'foo'],
-			func: () => [1, 'never', 'foo'],
-			async: async () => [1, 'never', 'foo'],
-			promise: () => Promise.resolve([1, 'never', 'foo']),
+			direct: [RuleConfigSeverity.Warning, 'never', 'foo'],
+			func: () => [RuleConfigSeverity.Warning, 'never', 'foo'],
+			async: async () => [RuleConfigSeverity.Warning, 'never', 'foo'],
+			promise: () =>
+				Promise.resolve([RuleConfigSeverity.Warning, 'never', 'foo']),
 		},
 	});
 
-	expect(actual.rules['direct']).toStrictEqual([1, 'never', 'foo']);
-	expect(actual.rules['func']).toStrictEqual([1, 'never', 'foo']);
-	expect(actual.rules['async']).toStrictEqual([1, 'never', 'foo']);
-	expect(actual.rules['promise']).toStrictEqual([1, 'never', 'foo']);
+	expect(actual.rules['direct']).toStrictEqual([
+		RuleConfigSeverity.Warning,
+		'never',
+		'foo',
+	]);
+	expect(actual.rules['func']).toStrictEqual([
+		RuleConfigSeverity.Warning,
+		'never',
+		'foo',
+	]);
+	expect(actual.rules['async']).toStrictEqual([
+		RuleConfigSeverity.Warning,
+		'never',
+		'foo',
+	]);
+	expect(actual.rules['promise']).toStrictEqual([
+		RuleConfigSeverity.Warning,
+		'never',
+		'foo',
+	]);
 });
 
 test('rules should be loaded from relative config file', async () => {
 	const file = 'config/commitlint.config.js';
 	const cwd = await gitBootstrap('fixtures/specify-config-file');
-	const rules = {'body-case': [1, 'never', 'camel-case'] as any};
+	const rules = {
+		'body-case': [RuleConfigSeverity.Warning, 'never', 'camel-case'] as any,
+	};
 
 	const actual = await load({rules}, {cwd, file});
 
-	expect(actual.rules['body-case']).toStrictEqual([1, 'never', 'camel-case']);
+	expect(actual.rules['body-case']).toStrictEqual([
+		RuleConfigSeverity.Warning,
+		'never',
+		'camel-case',
+	]);
 });
 
 test('rules should be loaded from absolute config file', async () => {
 	const cwd = await gitBootstrap('fixtures/specify-config-file');
 	const file = path.resolve(cwd, 'config/commitlint.config.js');
-	const rules = {'body-case': [1, 'never', 'camel-case'] as any};
+	const rules = {
+		'body-case': [RuleConfigSeverity.Warning, 'never', 'camel-case'] as any,
+	};
 
 	const actual = await load({rules}, {cwd: process.cwd(), file});
 
-	expect(actual.rules['body-case']).toStrictEqual([1, 'never', 'camel-case']);
+	expect(actual.rules['body-case']).toStrictEqual([
+		RuleConfigSeverity.Warning,
+		'never',
+		'camel-case',
+	]);
 });
 
 test('plugins should be loaded from seed', async () => {
@@ -180,106 +224,140 @@ test('respects cwd option', async () => {
 		extends: ['./second-extended'],
 		plugins: {},
 		rules: {
-			one: [1, 'always'],
-			two: [2, 'never'],
+			one: [RuleConfigSeverity.Warning, 'always'],
+			two: [RuleConfigSeverity.Error, 'never'],
 		},
 	});
 });
 
-test('recursive extends', async () => {
-	const cwd = await gitBootstrap('fixtures/recursive-extends');
-	const actual = await load({}, {cwd});
+describe.each([['basic'], ['extends']])('%s config', (template) => {
+	const isExtendsTemplate = template === 'extends';
 
-	expect(actual).toMatchObject({
-		formatter: '@commitlint/format',
-		extends: ['./first-extended'],
-		plugins: {},
-		rules: {
-			zero: [0, 'never'],
-			one: [1, 'always'],
-			two: [2, 'never'],
-		},
+	const configFiles = [
+		'commitlint.config.cjs',
+		'commitlint.config.js',
+		'commitlint.config.mjs',
+		'package.json',
+		'package.yaml',
+		'.commitlintrc',
+		'.commitlintrc.cjs',
+		'.commitlintrc.js',
+		'.commitlintrc.json',
+		'.commitlintrc.mjs',
+		'.commitlintrc.yml',
+		'.commitlintrc.yaml',
+	];
+
+	const configTestCases = [
+		...configFiles
+			.filter((filename) => !filename.endsWith('.mjs'))
+			.map((filename) => ({filename, isEsm: false})),
+		...configFiles
+			.filter((filename) =>
+				['.mjs', '.js'].some((ext) => filename.endsWith(ext))
+			)
+			.map((filename) => ({filename, isEsm: true})),
+	];
+
+	const getConfigContents = ({
+		filename,
+		isEsm,
+	}: {
+		filename: string;
+		isEsm: boolean;
+	}): string | NodeJS.ArrayBufferView => {
+		if (filename === 'package.json') {
+			const configPath = path.join(
+				__dirname,
+				`../fixtures/${template}-config/.commitlintrc.json`
+			);
+			const commitlint = JSON.parse(
+				readFileSync(configPath, {encoding: 'utf-8'})
+			);
+			return JSON.stringify({commitlint});
+		} else if (filename === 'package.yaml') {
+			const configPath = path.join(
+				__dirname,
+				`../fixtures/${template}-config/.commitlintrc.yaml`
+			);
+			const yaml = readFileSync(configPath, {encoding: 'utf-8'});
+			return `commitlint:\n${yaml.replace(/^/gm, '  ')}`;
+		} else {
+			const filePath = ['..', 'fixtures', `${template}-config`, filename];
+
+			if (isEsm) {
+				filePath.splice(3, 0, 'esm');
+			}
+
+			const configPath = path.join(__dirname, filePath.join('/'));
+			return readFileSync(configPath);
+		}
+	};
+
+	const esmBootstrap = (cwd: string) => {
+		const packageJsonPath = path.join(cwd, 'package.json');
+		const packageJSON = JSON.parse(
+			readFileSync(packageJsonPath, {encoding: 'utf-8'})
+		);
+
+		writeFileSync(
+			packageJsonPath,
+			JSON.stringify({
+				...packageJSON,
+				type: 'module',
+			})
+		);
+	};
+
+	const templateFolder = [template, isExtendsTemplate ? 'js' : '', 'template']
+		.filter((elem) => elem)
+		.join('-');
+
+	test.each(
+		configTestCases
+			// Skip ESM tests for the extends suite until resolve-extends supports ESM
+			.filter(({isEsm}) => template !== 'extends' || !isEsm)
+			// Skip ESM tests if dynamic await is not supported; Jest will crash with a seg fault error
+			.filter(({isEsm}) => isDynamicAwaitSupported() || !isEsm)
+	)('$filename, ESM: $isEsm', async ({filename, isEsm}) => {
+		const cwd = await gitBootstrap(`fixtures/${templateFolder}`);
+
+		if (isEsm) {
+			esmBootstrap(cwd);
+		}
+
+		writeFileSync(
+			path.join(cwd, filename),
+			getConfigContents({filename, isEsm})
+		);
+
+		const actual = await load({}, {cwd});
+
+		expect(actual).toMatchObject({
+			formatter: '@commitlint/format',
+			extends: isExtendsTemplate ? ['./first-extended'] : [],
+			plugins: {},
+			rules: {
+				zero: [RuleConfigSeverity.Disabled, 'never'],
+				one: [RuleConfigSeverity.Warning, 'always'],
+				two: [RuleConfigSeverity.Error, 'never'],
+			},
+		});
 	});
 });
 
-test('recursive extends with json file', async () => {
-	const cwd = await gitBootstrap('fixtures/recursive-extends-json');
-	const actual = await load({}, {cwd});
-
-	expect(actual).toMatchObject({
-		formatter: '@commitlint/format',
-		extends: ['./first-extended'],
-		plugins: {},
-		rules: {
-			zero: [0, 'never'],
-			one: [1, 'always'],
-			two: [2, 'never'],
-		},
-	});
-});
-
-test('recursive extends with yaml file', async () => {
-	const cwd = await gitBootstrap('fixtures/recursive-extends-yaml');
-	const actual = await load({}, {cwd});
-
-	expect(actual).toMatchObject({
-		formatter: '@commitlint/format',
-		extends: ['./first-extended'],
-		plugins: {},
-		rules: {
-			zero: [0, 'never'],
-			one: [1, 'never'],
-			two: [2, 'always'],
-		},
-	});
-});
-
-test('recursive extends with js file', async () => {
-	const cwd = await gitBootstrap('fixtures/recursive-extends-js');
-	const actual = await load({}, {cwd});
-
-	expect(actual).toMatchObject({
-		formatter: '@commitlint/format',
-		extends: ['./first-extended'],
-		plugins: {},
-		rules: {
-			zero: [0, 'never'],
-			one: [1, 'never'],
-			two: [2, 'always'],
-		},
-	});
-});
-
-test('recursive extends with package.json file', async () => {
-	const cwd = await gitBootstrap('fixtures/recursive-extends-package');
-	const actual = await load({}, {cwd});
-
-	expect(actual).toMatchObject({
-		formatter: '@commitlint/format',
-		extends: ['./first-extended'],
-		plugins: {},
-		rules: {
-			zero: [0, 'never'],
-			one: [1, 'never'],
-			two: [2, 'never'],
-		},
-	});
-});
-
-// fails since a jest update: https://github.com/conventional-changelog/commitlint/pull/3362
-// eslint-disable-next-line jest/no-disabled-tests
-test.skip('recursive extends with ts file', async () => {
+test('recursive extends with ts file', async () => {
 	const cwd = await gitBootstrap('fixtures/recursive-extends-ts');
 	const actual = await load({}, {cwd});
 
 	expect(actual).toMatchObject({
 		formatter: '@commitlint/format',
-		extends: ['./first-extended'],
+		extends: ['./first-extended/index.ts'],
 		plugins: {},
 		rules: {
-			zero: [0, 'never', 'zero'],
-			one: [1, 'never', 'one'],
-			two: [2, 'never', 'two'],
+			zero: [RuleConfigSeverity.Disabled, 'never', 'zero'],
+			one: [RuleConfigSeverity.Warning, 'never', 'one'],
+			two: [RuleConfigSeverity.Error, 'never', 'two'],
 		},
 	});
 });
@@ -315,8 +393,8 @@ test('ignores unknown keys', async () => {
 		extends: [],
 		plugins: {},
 		rules: {
-			foo: [1, 'always', 'bar'],
-			baz: [1, 'always', 'bar'],
+			foo: [RuleConfigSeverity.Warning, 'always', 'bar'],
+			baz: [RuleConfigSeverity.Warning, 'always', 'bar'],
 		},
 	});
 });
@@ -330,8 +408,8 @@ test('ignores unknown keys recursively', async () => {
 		extends: ['./one'],
 		plugins: {},
 		rules: {
-			zero: [0, 'always', 'zero'],
-			one: [1, 'always', 'one'],
+			zero: [RuleConfigSeverity.Disabled, 'always', 'zero'],
+			one: [RuleConfigSeverity.Warning, 'always', 'one'],
 		},
 	});
 });
@@ -347,9 +425,9 @@ test('find up from given cwd', async () => {
 		extends: [],
 		plugins: {},
 		rules: {
-			child: [2, 'always', true],
-			inner: [2, 'always', false],
-			outer: [2, 'always', false],
+			child: [RuleConfigSeverity.Error, 'always', true],
+			inner: [RuleConfigSeverity.Error, 'always', false],
+			outer: [RuleConfigSeverity.Error, 'always', false],
 		},
 	});
 });
@@ -364,9 +442,9 @@ test('find up config from outside current git repo', async () => {
 		extends: [],
 		plugins: {},
 		rules: {
-			child: [1, 'never', false],
-			inner: [1, 'never', false],
-			outer: [1, 'never', true],
+			child: [RuleConfigSeverity.Warning, 'never', false],
+			inner: [RuleConfigSeverity.Warning, 'never', false],
+			outer: [RuleConfigSeverity.Warning, 'never', true],
 		},
 	});
 });
@@ -388,7 +466,7 @@ test('resolves formatter relative from config directory', async () => {
 	const actual = await load({}, {cwd});
 
 	expect(actual).toMatchObject({
-		formatter: resolveFrom(cwd, './formatters/custom.js'),
+		formatter: resolveFrom('./formatters/custom.js', cwd),
 		extends: [],
 		plugins: {},
 		rules: {},
@@ -410,12 +488,15 @@ test('returns formatter name when unable to resolve from config directory', asyn
 test('does not mutate config module reference', async () => {
 	const file = 'config/commitlint.config.js';
 	const cwd = await gitBootstrap('fixtures/specify-config-file');
-	const rules = {'body-case': [1, 'never', 'camel-case'] as any};
+	const rules = {
+		'body-case': [RuleConfigSeverity.Warning, 'never', 'camel-case'] as any,
+	};
 
 	const configPath = path.join(cwd, file);
-	const before = JSON.stringify(require(configPath));
+
+	const before = readFileSync(configPath, {encoding: 'utf-8'});
 	await load({rules}, {cwd, file});
-	const after = JSON.stringify(require(configPath));
+	const after = readFileSync(configPath, {encoding: 'utf-8'});
 
 	expect(after).toBe(before);
 });
